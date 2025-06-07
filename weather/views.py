@@ -4,7 +4,7 @@ from rest_framework import status
 
 from .serializers import ForecastRequestSerializer, ForecastOverrideSerializer
 from .models import ForecastOverride
-from .services.openweathermap_service import WeatherService
+from .services.openweathermap import WeatherService
 from .services.forecast import save_forecast_override
 
 
