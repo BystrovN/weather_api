@@ -150,3 +150,5 @@ dmypy.json
 *.csv
 
 .flake8
+
+.ruff_cache
