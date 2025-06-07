@@ -34,7 +34,6 @@ def test_get_forecast_uses_api_success(mock_get_forecast, mock_filter):
 @patch('weather.services.forecast.ForecastOverride.objects.filter')
 @patch('weather.services.forecast.WeatherService.get_forecast')
 def test_get_forecast_uses_api_fail(mock_get_forecast, mock_filter):
-
     mock_filter.return_value.first.return_value = None
     mock_get_forecast.return_value = ServiceResult.fail('')
     is_error, _ = get_forecast({'city': 'BlaBla', 'date': ''})

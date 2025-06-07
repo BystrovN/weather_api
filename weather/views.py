@@ -8,7 +8,6 @@ from .services.forecast import save_forecast_override, get_forecast
 
 
 class CurrentWeatherView(APIView):
-
     def get(self, request):
         """Текущая погода в запрошенном городе."""
         city = request.query_params.get('city')
@@ -23,7 +22,6 @@ class CurrentWeatherView(APIView):
 
 
 class ForecastWeatherView(APIView):
-
     def get(self, request):
         """Прогноз погоды на день в запрошенном городе."""
         serializer = ForecastRequestSerializer(data=request.query_params)
