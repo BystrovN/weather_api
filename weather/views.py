@@ -3,9 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .serializers import ForecastRequestSerializer, ForecastOverrideSerializer
-from .models import ForecastOverride
-from .services.openweathermap import WeatherService
-from .services.forecast import save_forecast_override
+from .services.open_weather_map import WeatherService
+from .services.forecast import save_forecast_override, get_forecast
 
 
 class CurrentWeatherView(APIView):
@@ -18,9 +17,9 @@ class CurrentWeatherView(APIView):
 
         result = WeatherService().get_current_weather(city)
         if not result.is_ok:
-            return Response({'detail': result.errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(result.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(result.data, status=status.HTTP_200_OK)
+        return Response(result.data)
 
 
 class ForecastWeatherView(APIView):
@@ -30,22 +29,9 @@ class ForecastWeatherView(APIView):
         serializer = ForecastRequestSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
 
-        city = serializer.validated_data['city']
-        date = serializer.validated_data['date']
-        override = ForecastOverride.objects.filter(city=city, date=date).first()
+        is_error, data = get_forecast(serializer.validated_data)
 
-        if override:
-            min = override.min_temperature
-            max = override.max_temperature
-        else:
-            result = WeatherService().get_forecast(city, date)
-            if not result.is_ok:
-                return Response({'detail': result.errors}, status=status.HTTP_400_BAD_REQUEST)
-
-            min = result.data['min']
-            max = result.data['max']
-
-        return Response({'min_temperature': min, 'max_temperature': max})
+        return Response(data, status=status.HTTP_400_BAD_REQUEST if is_error else status.HTTP_200_OK)
 
     def post(self, request):
         """Запись прогноза погоды для города."""

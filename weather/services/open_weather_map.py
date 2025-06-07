@@ -14,17 +14,17 @@ logger = logging.getLogger(__name__)
 class ServiceResult:
     status: str
     data: dict = field(default_factory=dict)
-    errors: str = ''
+    errors: dict = field(default_factory=dict)
 
     @classmethod
     def ok(cls, data: dict) -> "ServiceResult":
         """Создание экземпляра с успешным результатом."""
-        return cls(status='ok', data=data, errors='')
+        return cls(status='ok', data=data)
 
     @classmethod
-    def fail(cls, errors: str) -> "ServiceResult":
+    def fail(cls, error: str) -> "ServiceResult":
         """Создание экземпляра с неудачным результатом."""
-        return cls(status='fail', data={}, errors=errors)
+        return cls(status='fail', errors={'error': error})
 
     @property
     def is_ok(self) -> bool:
