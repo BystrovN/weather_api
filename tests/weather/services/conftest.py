@@ -36,3 +36,12 @@ def forecast_correct_response():
 @pytest.fixture
 def forecast_incorrect_response():
     return {'temperature': {}}
+
+
+@pytest.fixture
+def override_forecast_object():
+    class Forecast:
+        min_temperature = 8
+        max_temperature = 18
+
+    return Forecast()

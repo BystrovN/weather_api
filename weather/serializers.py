@@ -34,6 +34,7 @@ class ForecastOverrideSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data['min_temperature'] > data['max_temperature']:
-            raise serializers.ValidationError('min_temperature must be less than or equal to max_temperature')
-
+            raise serializers.ValidationError(
+                {'min_temperature': 'min_temperature must be less than or equal to max_temperature'}
+            )
         return data
