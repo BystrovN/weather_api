@@ -101,3 +101,24 @@ def test_get_forecast_fail(mock_request, mock_coords, coords_result, forecast_in
 
     assert isinstance(result, ServiceResult)
     assert not result.is_ok
+
+
+@patch.object(GeoService, 'get_coordinates')
+@patch('weather.services.open_weather_map.requests.request')
+def test_get_current_weather_caching(mock_request, mock_coords, coords_result, current_weather_correct_response):
+    city = 'Abc'
+
+    # Первый запрос должен вызвать API.
+    mock_coords.return_value = coords_result
+    response = Mock()
+    response.status_code = 200
+    response.json.return_value = current_weather_correct_response
+    mock_request.return_value = response
+    WeatherService().get_current_weather(city)
+    assert mock_request.called
+
+    mock_request.reset_mock()
+
+    # Второй должен взять из кеша.
+    WeatherService().get_current_weather(city)
+    mock_request.assert_not_called()

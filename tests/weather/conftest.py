@@ -1,7 +1,13 @@
 from datetime import date, timedelta
 
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
+
+
+@pytest.fixture(autouse=True)
+def clear_cache_before_test():
+    cache.clear()
 
 
 @pytest.fixture

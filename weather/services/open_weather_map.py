@@ -5,6 +5,7 @@ import logging
 
 import requests
 from dotenv import load_dotenv
+from django.core.cache import cache
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -67,6 +68,11 @@ class GeoService(OpenWeatherBase):
 
     def get_coordinates(self, city: str) -> ServiceResult:
         """Координаты запрошенного города."""
+        cache_key = f'geo_coords_{city}'
+        cached = cache.get(cache_key)
+        if cached:
+            return ServiceResult.ok(cached)
+
         params = {'q': city, 'limit': 1}
         response = self._api_request(self.geo_url, params=params)
         if not response:
@@ -82,12 +88,13 @@ class GeoService(OpenWeatherBase):
         if any(key not in city_data for key in (latitude_key, longitude_key)):
             return ServiceResult.fail('Geocoding error')
 
-        return ServiceResult.ok(
-            {
-                latitude_key: city_data[latitude_key],
-                longitude_key: city_data[longitude_key],
-            }
-        )
+        result_data = {
+            latitude_key: city_data[latitude_key],
+            longitude_key: city_data[longitude_key],
+        }
+
+        cache.set(cache_key, result_data)
+        return ServiceResult.ok(result_data)
 
 
 class WeatherService(OpenWeatherBase):
@@ -100,6 +107,11 @@ class WeatherService(OpenWeatherBase):
 
     def get_current_weather(self, city: str) -> ServiceResult:
         """Текущая температура и локальное время в запрошенном городе."""
+        cache_key = f'current_weather_{city}'
+        cached = cache.get(cache_key)
+        if cached:
+            return ServiceResult.ok(cached)
+
         coords_result = self.geo_client.get_coordinates(city)
         if not coords_result.ok:
             return coords_result
@@ -121,15 +133,21 @@ class WeatherService(OpenWeatherBase):
             return ServiceResult.fail('Error retrieving current weather data')
 
         local_time = datetime.utcfromtimestamp(current['dt'] + timezone_offset).strftime('%H:%M')
-        return ServiceResult.ok(
-            {
-                'temperature': current['temp'],
-                'local_time': local_time,
-            }
-        )
+        result_data = {
+            'temperature': current['temp'],
+            'local_time': local_time,
+        }
+
+        cache.set(cache_key, result_data)
+        return ServiceResult.ok(result_data)
 
     def get_forecast(self, city: str, target_date: datetime) -> ServiceResult:
         """Прогноз погоды по дате (min и max температура)."""
+        cache_key = f'forecast_{city}_{target_date.strftime("%d.%m.%Y")}'
+        cached = cache.get(cache_key)
+        if cached:
+            return ServiceResult.ok(cached)
+
         coords_result = self.geo_client.get_coordinates(city)
         if not coords_result.ok:
             return coords_result
@@ -149,9 +167,10 @@ class WeatherService(OpenWeatherBase):
         if not temperature:
             return ServiceResult.fail('Error getting weather forecast')
 
-        return ServiceResult.ok(
-            {
-                'min': temperature['min'],
-                'max': temperature['max'],
-            }
-        )
+        result_data = {
+            'min': temperature['min'],
+            'max': temperature['max'],
+        }
+
+        cache.set(cache_key, result_data)
+        return ServiceResult.ok(result_data)
