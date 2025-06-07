@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass, field
 from datetime import datetime
 import logging
 
@@ -7,6 +8,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ServiceResult:
+    status: str
+    data: dict = field(default_factory=dict)
+    errors: str = ''
+
+    @classmethod
+    def ok(cls, data: dict) -> "ServiceResult":
+        """Создание экземпляра с успешным результатом."""
+        return cls(status='ok', data=data, errors='')
+
+    @classmethod
+    def fail(cls, errors: str) -> "ServiceResult":
+        """Создание экземпляра с неудачным результатом."""
+        return cls(status='fail', data={}, errors=errors)
+
+    @property
+    def is_ok(self) -> bool:
+        return self.status == 'ok'
 
 
 class OpenWeatherBase:
@@ -32,7 +54,7 @@ class OpenWeatherBase:
             response.raise_for_status()
             return response
         except requests.RequestException as err:
-            logger.error(f'Ошибка {method} запроса к {url} - {err}')
+            logger.error(f'{method} request to {url} error - {err}')
             return
 
 
@@ -43,27 +65,29 @@ class GeoService(OpenWeatherBase):
         super().__init__()
         self.geo_url = f'{self.BASE_URL}/geo/1.0/direct'
 
-    def get_coordinates(self, city: str) -> dict:
+    def get_coordinates(self, city: str) -> ServiceResult:
         """Координаты запрошенного города."""
         params = {'q': city, 'limit': 1}
         response = self._api_request(self.geo_url, params=params)
         if not response:
-            raise Exception('Ошибка геокодирования')
+            return ServiceResult.fail('Geocoding error')
 
         data = response.json()
         if not data:
-            raise ValueError(f'Город {city} не найден.')
+            return ServiceResult.fail(f'City {city} not found.')
 
         city_data = data[0]
         latitude_key = 'lat'
         longitude_key = 'lon'
         if any(key not in city_data for key in (latitude_key, longitude_key)):
-            raise Exception('Ошибка геокодирования')
+            return ServiceResult.fail('Geocoding error')
 
-        return {
-            latitude_key: city_data[latitude_key],
-            longitude_key: city_data[longitude_key],
-        }
+        return ServiceResult.ok(
+            {
+                latitude_key: city_data[latitude_key],
+                longitude_key: city_data[longitude_key],
+            }
+        )
 
 
 class WeatherService(OpenWeatherBase):
@@ -74,50 +98,60 @@ class WeatherService(OpenWeatherBase):
         self.geo_client = GeoService()
         self.weather_url = f'{self.BASE_URL}/data/3.0/onecall'
 
-    def get_current_weather(self, city: str) -> dict:
+    def get_current_weather(self, city: str) -> ServiceResult:
         """Текущая температура и локальное время в запрошенном городе."""
-        coords = self.geo_client.get_coordinates(city)
+        coords_result = self.geo_client.get_coordinates(city)
+        if not coords_result.ok:
+            return coords_result
+
         params = {
-            'lat': coords['lat'],
-            'lon': coords['lon'],
+            'lat': coords_result.data['lat'],
+            'lon': coords_result.data['lon'],
             'exclude': 'minutely,hourly,daily,alerts',
         }
 
         response = self._api_request(self.weather_url, params=params)
         if not response:
-            raise Exception('Ошибка получения данных о текущей погоде')
+            return ServiceResult.fail('Error retrieving current weather data')
 
         data = response.json()
         current = data.get('current')
         timezone_offset = data.get('timezone_offset', 0)
         if not current:
-            raise Exception('Ошибка получения данных о текущей погоде')
+            return ServiceResult.fail('Error retrieving current weather data')
 
         local_time = datetime.utcfromtimestamp(current['dt'] + timezone_offset).strftime('%H:%M')
-        return {
-            'temperature': current['temp'],
-            'local_time': local_time,
-        }
+        return ServiceResult.ok(
+            {
+                'temperature': current['temp'],
+                'local_time': local_time,
+            }
+        )
 
-    def get_forecast(self, city: str, target_date: datetime) -> dict | None:
+    def get_forecast(self, city: str, target_date: datetime) -> ServiceResult:
         """Прогноз погоды по дате (min и max температура)."""
-        coords = self.geo_client.get_coordinates(city)
+        coords_result = self.geo_client.get_coordinates(city)
+        if not coords_result.ok:
+            return coords_result
+
         url = f'{self.weather_url}/day_summary'
         params = {
-            'lat': coords['lat'],
-            'lon': coords['lon'],
-            'date': datetime.strptime(target_date, '%d.%m.%Y').strftime('%Y.%m.%d'),
+            'lat': coords_result.data['lat'],
+            'lon': coords_result.data['lon'],
+            'date': target_date.strftime('%Y.%m.%d'),
         }
         response = self._api_request(url, params=params)
         if not response:
-            raise Exception('Ошибка получения прогноза погоды')
+            return ServiceResult.fail('Error getting weather forecast')
 
         data = response.json()
         temperature = data.get('temperature')
         if not temperature:
-            raise Exception('Ошибка получения прогноза погоды')
+            return ServiceResult.fail('Error getting weather forecast')
 
-        return {
-            'min_temperature': temperature['min'],
-            'max_temperature': temperature['max'],
-        }
+        return ServiceResult.ok(
+            {
+                'min': temperature['min'],
+                'max': temperature['max'],
+            }
+        )
